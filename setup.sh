@@ -53,8 +53,8 @@ LAYER@https://github.com/MontaVista-OpenSourceTechnology/meta-montavista-cgl.git
 LAYER@https://github.com/MontaVista-OpenSourceTechnology/meta-montavista-x86-generic-4.19.git;branch=thud \
 MACHINE@x86-generic-64 \
 DISTRO@mvista-cgx \
-SOURCE@https://github.com/MontaVista-OpenSourceTechnology/linux-mvista-2.6.git;branch=mvl-4.19/msd.cgx \
-SOURCE@https://github.com/MontaVista-OpenSourceTechnology/yocto-kernel-cache.git;branch=yocto-4.19 \
+SOURCE@https://github.com/MontaVista-OpenSourceTechnology/linux-mvista-2.6.git;branch=mvl-4.19/msd.cgx;meta=MV_KERNEL \
+SOURCE@https://github.com/MontaVista-OpenSourceTechnology/yocto-kernel-cache.git;branch=yocto-4.19;meta=MV_KERNELCACHE \
 "
 BUILD_TOOLS_LOCATION=http://downloads.yoctoproject.org/releases/yocto/yocto-2.4.4/buildtools/
 TOPDIR=$(dirname $THIS_SCRIPT)
@@ -96,7 +96,11 @@ if [[ ("x$URLBASE" != "x") && ( "$HOST" = "staging.support.mvista.com" || "$HOST
    git config --global http.$URLBASE.cookiefile $($TOPDIR/bin/mvl-fetch -c $URLBASE)
 fi
 
-if [ ! -e $TOPDIR/.drop ] ; then
+if [ -z "$ALLOW_UPDATE" ] ; then
+    ALLOW_UPDATE=1
+fi
+
+if [ ! -e "$TOPDIR/.drop" -o "$ALLOW_UPDATE" = "1" ] ; then
    if [ ! -e $TOPDIR/.repo ] ; then
       pushd $TOPDIR 2>/dev/null 1>/dev/null
          git config pull.rebase True
@@ -195,7 +199,7 @@ for config in $REPO_CONFIG; do
           mkdir -p $TOPDIR/sources-export
           LSOURCE=$TOPDIR/sources/$(basename $TREE | sed s,.git,,)
           LSOURCE_EXPORT=$TOPDIR/sources-export/$(basename $TREE | sed s,.git,,)
-          if [ ! -e $TOPDIR/.drop ] ; then
+          if [ ! -e "$TOPDIR/.drop" -o "$ALLOW_UPDATE" = "1" ] ; then
               pushd $LSOURCE 2>/dev/null >/dev/null
                      git checkout  -f $BRANCH || $EXIT 1
                      git pull -X theirs 2>/dev/null >/dev/null
@@ -209,7 +213,7 @@ for config in $REPO_CONFIG; do
                  fi
               else
                  pushd $LSOURCE_EXPORT 2>/dev/null >/dev/null
-                     git fetch || $EXIT 1
+                     git fetch origin $BRANCH:$BRANCH || $EXIT 1
                  popd 2>/dev/null >/dev/null
               fi
           fi
@@ -276,28 +280,39 @@ EOF
    rm -rf tmp-glibc
 else
    rm -rf tmp
+   cd $TOPDIR
    rm -rf $TOPDIR/buildtools
    touch $TOPDIR/.drop
-   rm -rf $TOPDIR/project
+   rm -rf $TOPDIR/$buildDir
 fi
-if [ "$EXIT" = "exit" ] ; then
-   echo
-   echo "=Setup Complete="
-   echo
-   echo "* Run the following to start building with your project:"
-   echo "source $buildDir/setup.sh"
-   echo "bitbake core-image-minimal"
-   echo
+if [ "$MAKEDROP" != "1" ] ; then
+   if [ "$EXIT" = "exit" ] ; then
+      echo
+      echo "=Setup Complete="
+      echo
+      echo "* Run the following to start building with your project:"
+      echo "source $buildDir/setup.sh"
+      echo "bitbake core-image-minimal"
+      echo
+   else
+      echo
+      echo "=Setup Complete="
+      echo
+      echo "* To start building run the following:"
+      echo "bitbake core-image-minimal"
+      echo
+      echo "* To re-setup your build environment for your build later, run:"
+      echo "source $buildDir/setup.sh"
+      echo
+   fi
 else
-   echo
-   echo "=Setup Complete="
-   echo
-   echo "* To start building run the following:"
-   echo "bitbake core-image-minimal"
-   echo
-   echo "* To re-setup your build environment for your build later, run:"
-   echo "source $buildDir/setup.sh"
-   echo
+      echo
+      echo "=Setup Complete="
+      echo
+      echo "* Run the following to start building with your project:"
+      echo "source $TOPDIR/setup.sh"
+      echo "bitbake core-image-minimal"
+      echo
 fi
 echo "* To update your content sources run:"
 if [ "$(readlink -f $buildDir)" = "$(readlink -f $TOPDIR/project)" ] ; then
